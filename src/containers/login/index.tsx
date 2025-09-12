@@ -29,7 +29,7 @@ const Login = () => {
           Track your food, not your worries.
         </h3>
       </div>
-      {loginType === 'email' && <LoginWithEmail />}
+      {loginType === 'email' && <LoginWithEmail handleBack={() => setLoginType(null)} />}
       {!loginType && (
         <div className='flex flex-col gap-4 items-center justify-center w-full max-w-sm'>
           {error && (
@@ -41,7 +41,7 @@ const Login = () => {
             variant='outline'
             className='w-full h-12'
             onClick={() => setLoginType('google')}
-            disabled={!!loadingType}
+            disabled={!!loadingType || true}
           >
             {loadingType === 'google' ? 'Logging in...' : 'Login with Google'}
           </Button>
@@ -49,7 +49,7 @@ const Login = () => {
             variant='outline'
             className='w-full h-12'
             onClick={() => setLoginType('apple')}
-            disabled={!!loadingType}
+            disabled={!!loadingType || true}
           >
             {loadingType === 'apple' ? 'Logging in...' : 'Login with Apple'}
           </Button>

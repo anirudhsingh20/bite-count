@@ -7,6 +7,9 @@ export const ENDPOINTS = {
         logout: '/auth/logout',
         me: '/auth/me',
     },
+    mealsType: {
+        get: '/meals/types',
+    },
 };
 
 export const getEndpoint = (endpoint: string) => {
