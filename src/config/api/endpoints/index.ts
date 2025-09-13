@@ -8,7 +8,7 @@ export const ENDPOINTS = {
         me: '/auth/me',
     },
     mealsType: {
-        get: '/meals/types',
+        get: '/meal-types',
     },
 };
 
