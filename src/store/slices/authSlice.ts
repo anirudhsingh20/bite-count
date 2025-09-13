@@ -2,7 +2,7 @@ import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import { REHYDRATE } from 'redux-persist'
 
 export interface User {
-  id: string
+  _id: string
   email: string
   name: string
   avatar?: string

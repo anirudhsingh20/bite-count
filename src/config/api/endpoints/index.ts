@@ -1,5 +1,3 @@
-import { BASE_URL } from "../constants";
-
 export const ENDPOINTS = {
     auth: {
         login: '/auth/login',
@@ -8,10 +6,9 @@ export const ENDPOINTS = {
         me: '/auth/me',
     },
     mealsType: {
-        get: '/meal-types',
+        get: '/meals/types',
     },
-};
-
-export const getEndpoint = (endpoint: string) => {
-    return `${BASE_URL}${endpoint}`;
+    meals: {
+        create: '/meals',
+    }
 };

@@ -1,11 +1,35 @@
 import { Button } from '../../components/ui/button';
-import { Calendar, Plus } from 'lucide-react';
+import { Calendar, Plus, X } from 'lucide-react';
 import MacroNutrientsCard from './macro-nutrients-card';
 import NutritionCard from './nutrition-card';
 import useDashboard from './hooks/use-dashboard';
+import AddFoodModal from '../../components/AddFoodModal';
+import { useState } from 'react';
+
+interface FoodItem {
+  id: string;
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  serving: string;
+  quantity: number;
+  image?: string;
+  userId?: string;
+  userName?: string;
+}
 
 const Dashboard = () => {
   const { mealTypes } = useDashboard();
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [selectedMealType, setSelectedMealType] = useState('');
+  const [meals, setMeals] = useState<Record<string, FoodItem[]>>({
+    breakfast: [],
+    lunch: [],
+    dinner: [],
+    snacks: [],
+  });
 
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
@@ -13,19 +37,42 @@ const Dashboard = () => {
     day: 'numeric',
   });
 
-  // Mock data - replace with real data from API
-  const nutritionData = {
-    calories: { consumed: 1250, goal: 2000 },
-    protein: { consumed: 120, goal: 180 },
-    carbs: 150,
-    fat: 25,
+  // Calculate nutrition data from meals
+  const calculateNutritionData = () => {
+    const allFoods = Object.values(meals).flat();
+    const totalCalories = allFoods.reduce((sum, food) => sum + (food.calories * food.quantity), 0);
+    const totalProtein = allFoods.reduce((sum, food) => sum + (food.protein * food.quantity), 0);
+    const totalCarbs = allFoods.reduce((sum, food) => sum + (food.carbs * food.quantity), 0);
+    const totalFat = allFoods.reduce((sum, food) => sum + (food.fat * food.quantity), 0);
+
+    return {
+      calories: { consumed: Math.round(totalCalories), goal: 2000 },
+      protein: { consumed: Math.round(totalProtein * 10) / 10, goal: 180 },
+      carbs: Math.round(totalCarbs * 10) / 10,
+      fat: Math.round(totalFat * 10) / 10,
+    };
   };
 
-  const meals = {
-    breakfast: [{ name: 'Oatmeal with berries', calories: 350, protein: 10 }],
-    lunch: [{ name: 'Grilled chicken salad', calories: 450, protein: 40 }],
-    dinner: [],
-    snacks: [],
+  const nutritionData = calculateNutritionData();
+
+  const handleAddFood = (food: FoodItem, quantity: number) => {
+    const foodWithQuantity = { ...food, quantity };
+    setMeals(prev => ({
+      ...prev,
+      [selectedMealType]: [...prev[selectedMealType], foodWithQuantity]
+    }));
+  };
+
+  const handleRemoveFood = (mealType: string, foodId: string) => {
+    setMeals(prev => ({
+      ...prev,
+      [mealType]: prev[mealType].filter(food => food.id !== foodId)
+    }));
+  };
+
+  const openAddModal = (mealType: string) => {
+    setSelectedMealType(mealType);
+    setIsAddModalOpen(true);
   };
 
   return (
@@ -74,123 +121,84 @@ const Dashboard = () => {
 
         {/* Meals Section */}
         <div className='space-y-4'>
-          {/* Breakfast */}
           {mealTypes.map((mealType) => (
-            <div className='flex items-center justify-between mb-3' key={mealType}>
-              <h3 className='text-lg font-semibold text-gray-600 capitalize'>{mealType}</h3>
-              <Button
-                size='sm'
-                className='w-8 h-8 p-0 rounded-full bg-blue-500 hover:bg-blue-600'
-              >
-                <Plus size={16} className='text-white' />
-              </Button>
+            <div key={mealType}>
+              <div className='flex items-center justify-between mb-3'>
+                <h3 className='text-lg font-semibold text-gray-600 capitalize'>
+                  {mealType}
+                </h3>
+                <Button
+                  size='sm'
+                  className='w-8 h-8 p-0 rounded-full bg-blue-500 hover:bg-blue-600 transition-all duration-200 hover:scale-105'
+                  onClick={() => openAddModal(mealType)}
+                >
+                  <Plus size={16} className='text-white' />
+                </Button>
+              </div>
+              {meals[mealType] && meals[mealType].length > 0 ? (
+                <div className='space-y-2'>
+                  {meals[mealType].map((item, index) => (
+                    <div key={`${item.id}-${index}`} className='bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-all duration-200'>
+                      <div className='flex items-center justify-between'>
+                        <div className='flex items-center gap-3'>
+                          <div className='text-2xl'>{item.image}</div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className='font-medium text-gray-900'>
+                                {item.name}
+                              </span>
+                              {item.userName && (
+                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                                  {item.userName}
+                                </span>
+                              )}
+                            </div>
+                            <div className='text-xs text-gray-500'>
+                              {item.quantity} {item.serving}
+                            </div>
+                          </div>
+                        </div>
+                        <div className='flex items-center gap-3'>
+                          <div className='flex items-center gap-2 text-sm text-gray-600'>
+                            <span>{Math.round(item.calories * item.quantity)} kcal</span>
+                            <div className='w-px h-4 bg-gray-300'></div>
+                            <span>{Math.round(item.protein * item.quantity * 10) / 10}g protein</span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveFood(mealType, item.id)}
+                            className='w-6 h-6 p-0 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full'
+                          >
+                            <X size={14} />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className='bg-gray-100 rounded-lg p-6 text-center text-gray-500'>
+                  <div className='text-4xl mb-2'>🍽️</div>
+                  <p className='text-sm'>No items added yet</p>
+                  <p className='text-xs text-gray-400'>Tap the + button to add food</p>
+                </div>
+              )}
             </div>
           ))}
-          <div>
-            <div className='flex items-center justify-between mb-3'>
-              <h3 className='text-lg font-semibold text-gray-900'>Breakfast</h3>
-              <Button
-                size='sm'
-                className='w-8 h-8 p-0 rounded-full bg-blue-500 hover:bg-blue-600'
-              >
-                <Plus size={16} className='text-white' />
-              </Button>
-            </div>
-            {meals.breakfast.length > 0 ? (
-              <div className='space-y-2'>
-                {meals.breakfast.map((item, index) => (
-                  <div key={index} className='bg-gray-100 rounded-lg p-3'>
-                    <div className='flex items-center justify-between'>
-                      <span className='font-medium text-gray-900'>
-                        {item.name}
-                      </span>
-                      <div className='flex items-center gap-2 text-sm text-gray-600'>
-                        <span>{item.calories} kcal</span>
-                        <div className='w-px h-4 bg-gray-300'></div>
-                        <span>{item.protein}g protein</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className='bg-gray-100 rounded-lg p-3 text-center text-gray-500'>
-                No items added yet
-              </div>
-            )}
-          </div>
-
-          {/* Lunch */}
-          <div>
-            <div className='flex items-center justify-between mb-3'>
-              <h3 className='text-lg font-semibold text-gray-900'>Lunch</h3>
-              <Button
-                size='sm'
-                className='w-8 h-8 p-0 rounded-full bg-blue-500 hover:bg-blue-600'
-              >
-                <Plus size={16} className='text-white' />
-              </Button>
-            </div>
-            {meals.lunch.length > 0 ? (
-              <div className='space-y-2'>
-                {meals.lunch.map((item, index) => (
-                  <div key={index} className='bg-gray-100 rounded-lg p-3'>
-                    <div className='flex items-center justify-between'>
-                      <span className='font-medium text-gray-900'>
-                        {item.name}
-                      </span>
-                      <div className='flex items-center gap-2 text-sm text-gray-600'>
-                        <span>{item.calories} kcal</span>
-                        <div className='w-px h-4 bg-gray-300'></div>
-                        <span>{item.protein}g protein</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className='bg-gray-100 rounded-lg p-3 text-center text-gray-500'>
-                No items added yet
-              </div>
-            )}
-          </div>
-
-          {/* Dinner */}
-          <div>
-            <div className='flex items-center justify-between mb-3'>
-              <h3 className='text-lg font-semibold text-gray-900'>Dinner</h3>
-              <Button
-                size='sm'
-                className='w-8 h-8 p-0 rounded-full bg-blue-500 hover:bg-blue-600'
-              >
-                <Plus size={16} className='text-white' />
-              </Button>
-            </div>
-            <div className='bg-gray-100 rounded-lg p-3 text-center text-gray-500'>
-              No items added yet
-            </div>
-          </div>
-
-          {/* Snacks */}
-          <div>
-            <div className='flex items-center justify-between mb-3'>
-              <h3 className='text-lg font-semibold text-gray-900'>Snacks</h3>
-              <Button
-                size='sm'
-                className='w-8 h-8 p-0 rounded-full bg-blue-500 hover:bg-blue-600'
-              >
-                <Plus size={16} className='text-white' />
-              </Button>
-            </div>
-            <div className='bg-gray-100 rounded-lg p-3 text-center text-gray-500'>
-              No items added yet
-            </div>
-          </div>
         </div>
 
         {/* Bottom spacing for navigation */}
         <div className='h-20'></div>
       </div>
+
+      {/* Add Food Modal */}
+      <AddFoodModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        mealType={selectedMealType}
+        onAddFood={handleAddFood}
+      />
     </div>
   );
 };
