@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Plus, Minus, Flame, Zap } from 'lucide-react';
+import { X, Flame, Zap } from 'lucide-react';
 import { Button } from './ui/button';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
@@ -8,6 +8,7 @@ import { addFood } from '../containers/dashboard/api-handlers';
 import { toast } from 'sonner';
 
 export interface FoodItem {
+  _id?: string;
   name: string;
   protein: number;
   calories: number;
@@ -32,6 +33,7 @@ interface AddNewFoodModalProps {
   onClose: () => void;
   mealType: string;
   onAddFood: (food: FoodItem, quantity: number) => void;
+  onAddMultipleFoods?: (foods: Array<{ food: FoodItem; quantity: number }>) => void;
 }
 
 const AddNewFoodModal: React.FC<AddNewFoodModalProps> = ({
@@ -39,9 +41,12 @@ const AddNewFoodModal: React.FC<AddNewFoodModalProps> = ({
   onClose,
   mealType,
   onAddFood,
+  onAddMultipleFoods,
 }) => {
   const [quantity, setQuantity] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
+  const [foodItems, setFoodItems] = useState<Array<{ food: FoodItem; quantity: number }>>([]);
+  const [isMultiAddMode, setIsMultiAddMode] = useState(false);
 
   // Validation schema
   const validationSchema = Yup.object({
@@ -104,11 +109,20 @@ const AddNewFoodModal: React.FC<AddNewFoodModalProps> = ({
       const response = await addFood(foodItem);
       console.info(response);
       if (response.success) {
-        toast.success('Food item added successfully');
-        onAddFood(foodItem, quantity);
-        setQuantity(1);
-        setIsAdding(false);
-        onClose();
+        if (isMultiAddMode) {
+          // Add to the list of food items
+          setFoodItems(prev => [...prev, { food: foodItem, quantity }]);
+          toast.success('Food item added to list');
+          // Reset form for next item
+          formik.resetForm();
+          setQuantity(1);
+        } else {
+          // Single add mode
+          toast.success('Food item added successfully');
+          onAddFood(foodItem, quantity);
+          setQuantity(1);
+          onClose();
+        }
       } else {
         throw new Error('Failed to add food item');
       }
@@ -118,6 +132,36 @@ const AddNewFoodModal: React.FC<AddNewFoodModalProps> = ({
     } finally {
       setIsAdding(false);
     }
+  };
+
+  const handleAddAllFoods = async () => {
+    if (foodItems.length === 0) return;
+    
+    try {
+      setIsAdding(true);
+      if (onAddMultipleFoods) {
+        onAddMultipleFoods(foodItems);
+        toast.success(`${foodItems.length} food items added successfully`);
+      } else {
+        // Fallback to adding one by one
+        for (const item of foodItems) {
+          onAddFood(item.food, item.quantity);
+        }
+        toast.success(`${foodItems.length} food items added successfully`);
+      }
+      setFoodItems([]);
+      setIsMultiAddMode(false);
+      onClose();
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to add food items');
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const removeFoodFromList = (index: number) => {
+    setFoodItems(prev => prev.filter((_, i) => i !== index));
   };
 
   const formik = useFormik({
@@ -143,14 +187,32 @@ const AddNewFoodModal: React.FC<AddNewFoodModalProps> = ({
         {/* Header */}
         <div className='sticky top-0 bg-white border-b border-gray-100 p-4'>
           <div className='flex items-center justify-between'>
-            <div>
-              <h2 className='text-xl font-bold text-gray-900'>
-                Add New Food Item
-              </h2>
-              <p className='text-sm text-gray-500'>
-                Create a custom food item for {mealType}
-              </p>
-            </div>
+             <div>
+               <h2 className='text-xl font-bold text-gray-900'>
+                 Add New Food Item
+               </h2>
+               <p className='text-sm text-gray-500'>
+                 Create a custom food item for {mealType}
+               </p>
+               <div className='flex items-center gap-2 mt-2'>
+                 <button
+                   type='button'
+                   onClick={() => setIsMultiAddMode(!isMultiAddMode)}
+                   className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                     isMultiAddMode
+                       ? 'bg-blue-500 text-white border-blue-500'
+                       : 'bg-gray-100 text-gray-600 border-gray-300'
+                   }`}
+                 >
+                   {isMultiAddMode ? 'Multi-Add Mode' : 'Single Add Mode'}
+                 </button>
+                 {isMultiAddMode && foodItems.length > 0 && (
+                   <span className='text-xs text-blue-600 font-medium'>
+                     {foodItems.length} items ready
+                   </span>
+                 )}
+               </div>
+             </div>
             <Button
               variant='ghost'
               size='icon'
@@ -392,6 +454,42 @@ const AddNewFoodModal: React.FC<AddNewFoodModalProps> = ({
                     </div>
                   </div>
                 )}
+
+              {/* Food Items List (Multi-Add Mode) */}
+              {isMultiAddMode && foodItems.length > 0 && (
+                <div className='bg-gray-50 border border-gray-200 rounded-xl p-4'>
+                  <h4 className='text-sm font-medium text-gray-700 mb-3'>
+                    Added Food Items ({foodItems.length})
+                  </h4>
+                  <div className='space-y-2 max-h-32 overflow-y-auto'>
+                    {foodItems.map((item, index) => (
+                      <div
+                        key={index}
+                        className='flex items-center justify-between bg-white rounded-lg p-3 border border-gray-200'
+                      >
+                        <div className='flex items-center gap-3'>
+                          <span className='text-lg'>{item.food.emoji}</span>
+                          <div>
+                            <p className='text-sm font-medium text-gray-900'>
+                              {item.food.name}
+                            </p>
+                            <p className='text-xs text-gray-500'>
+                              {item.quantity}x {item.food.servingSize} • {item.food.calories} cal
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type='button'
+                          onClick={() => removeFoodFromList(index)}
+                          className='text-red-500 hover:text-red-700 p-1'
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Action Buttons */}
@@ -404,20 +502,55 @@ const AddNewFoodModal: React.FC<AddNewFoodModalProps> = ({
               >
                 Cancel
               </Button>
-              <Button
-                type='submit'
-                disabled={formik.isSubmitting || isAdding}
-                className='flex-1 bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-50'
-              >
-                {isAdding ? (
-                  <div className='flex items-center gap-2'>
-                    <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
-                    Adding...
-                  </div>
-                ) : (
-                  `Add to ${mealType}`
-                )}
-              </Button>
+              
+              {isMultiAddMode ? (
+                <>
+                  <Button
+                    type='submit'
+                    disabled={formik.isSubmitting || isAdding}
+                    className='flex-1 bg-green-500 hover:bg-green-600 text-white disabled:opacity-50'
+                  >
+                    {isAdding ? (
+                      <div className='flex items-center gap-2'>
+                        <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
+                        Adding...
+                      </div>
+                    ) : (
+                      'Add to List'
+                    )}
+                  </Button>
+                  <Button
+                    type='button'
+                    onClick={handleAddAllFoods}
+                    disabled={foodItems.length === 0 || isAdding}
+                    className='flex-1 bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-50'
+                  >
+                    {isAdding ? (
+                      <div className='flex items-center gap-2'>
+                        <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
+                        Adding All...
+                      </div>
+                    ) : (
+                      `Add All (${foodItems.length})`
+                    )}
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  type='submit'
+                  disabled={formik.isSubmitting || isAdding}
+                  className='flex-1 bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-50'
+                >
+                  {isAdding ? (
+                    <div className='flex items-center gap-2'>
+                      <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
+                      Adding...
+                    </div>
+                  ) : (
+                    `Add to ${mealType}`
+                  )}
+                </Button>
+              )}
             </div>
           </form>
         </div>

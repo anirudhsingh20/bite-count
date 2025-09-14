@@ -10,5 +10,6 @@ export const ENDPOINTS = {
     },
     meals: {
         create: '/meals',
+        get: '/meals',
     }
 };

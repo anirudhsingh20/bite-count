@@ -10,3 +10,8 @@ export const addFood = async (food: FoodItem) => {
     const {data} = await apiClient.post(ENDPOINTS.meals.create, food);
     return data;
 };
+
+export const getFoods = async () => {
+    const {data} = await apiClient.get(ENDPOINTS.meals.get);
+    return data;
+};

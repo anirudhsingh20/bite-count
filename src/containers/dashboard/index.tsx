@@ -5,17 +5,11 @@ import NutritionCard from './nutrition-card';
 import useDashboard from './hooks/use-dashboard';
 import AddFoodModal from '../../components/AddFoodModal';
 import { useState } from 'react';
+import type { FoodItem } from '../../components/AddNewFoodModal';
 
-interface FoodItem {
+interface DashboardFoodItem extends FoodItem {
   id: string;
-  name: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  serving: string;
   quantity: number;
-  image?: string;
   userId?: string;
   userName?: string;
 }
@@ -24,7 +18,7 @@ const Dashboard = () => {
   const { mealTypes } = useDashboard();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedMealType, setSelectedMealType] = useState('');
-  const [meals, setMeals] = useState<Record<string, FoodItem[]>>({
+  const [meals, setMeals] = useState<Record<string, DashboardFoodItem[]>>({
     breakfast: [],
     lunch: [],
     dinner: [],
@@ -42,8 +36,8 @@ const Dashboard = () => {
     const allFoods = Object.values(meals).flat();
     const totalCalories = allFoods.reduce((sum, food) => sum + (food.calories * food.quantity), 0);
     const totalProtein = allFoods.reduce((sum, food) => sum + (food.protein * food.quantity), 0);
-    const totalCarbs = allFoods.reduce((sum, food) => sum + (food.carbs * food.quantity), 0);
-    const totalFat = allFoods.reduce((sum, food) => sum + (food.fat * food.quantity), 0);
+    const totalCarbs = allFoods.reduce((sum, food) => sum + ((food.carbs || 0) * food.quantity), 0);
+    const totalFat = allFoods.reduce((sum, food) => sum + ((food.fat || 0) * food.quantity), 0);
 
     return {
       calories: { consumed: Math.round(totalCalories), goal: 2000 },
@@ -56,10 +50,30 @@ const Dashboard = () => {
   const nutritionData = calculateNutritionData();
 
   const handleAddFood = (food: FoodItem, quantity: number) => {
-    const foodWithQuantity = { ...food, quantity };
+    const dashboardFood: DashboardFoodItem = {
+      ...food,
+      id: food._id || Date.now().toString(),
+      quantity,
+      userId: food.user,
+      userName: undefined // You might want to fetch this from user data
+    };
     setMeals(prev => ({
       ...prev,
-      [selectedMealType]: [...prev[selectedMealType], foodWithQuantity]
+      [selectedMealType]: [...prev[selectedMealType], dashboardFood]
+    }));
+  };
+
+  const handleAddMultipleFoods = (foods: Array<{ food: FoodItem; quantity: number }>) => {
+    const dashboardFoods: DashboardFoodItem[] = foods.map(({ food, quantity }) => ({
+      ...food,
+      id: food._id || Date.now().toString(),
+      quantity,
+      userId: food.user,
+      userName: undefined // You might want to fetch this from user data
+    }));
+    setMeals(prev => ({
+      ...prev,
+      [selectedMealType]: [...prev[selectedMealType], ...dashboardFoods]
     }));
   };
 
@@ -141,7 +155,7 @@ const Dashboard = () => {
                     <div key={`${item.id}-${index}`} className='bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-all duration-200'>
                       <div className='flex items-center justify-between'>
                         <div className='flex items-center gap-3'>
-                          <div className='text-2xl'>{item.image}</div>
+                          <div className='text-2xl'>{item.emoji}</div>
                           <div>
                             <div className="flex items-center gap-2">
                               <span className='font-medium text-gray-900'>
@@ -154,7 +168,7 @@ const Dashboard = () => {
                               )}
                             </div>
                             <div className='text-xs text-gray-500'>
-                              {item.quantity} {item.serving}
+                              {item.quantity} {item.servingSize}
                             </div>
                           </div>
                         </div>
@@ -198,6 +212,7 @@ const Dashboard = () => {
         onClose={() => setIsAddModalOpen(false)}
         mealType={selectedMealType}
         onAddFood={handleAddFood}
+        onAddMultipleFoods={handleAddMultipleFoods}
       />
     </div>
   );
