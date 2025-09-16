@@ -531,7 +531,9 @@ const AddNewFoodModal: React.FC<AddNewFoodModalProps> = ({
                         Adding All...
                       </div>
                     ) : (
-                      `Add All (${foodItems.length})`
+                      <>
+                      {(foodItems.length > 0) ? (foodItems.length > 1 ? `Add All (${foodItems.length})` : `Add ${foodItems?.[0]?.food.name}`) : `Select items to add`}
+                      </>
                     )}
                   </Button>
                 </>

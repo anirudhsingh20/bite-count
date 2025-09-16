@@ -11,5 +11,9 @@ export const ENDPOINTS = {
     meals: {
         create: '/meals',
         get: '/meals',
+    },
+    loggedMeals: {
+        get: (userId: string) => `/food-logs/user/${userId}`,
+        logBulk: '/food-logs/bulk',
     }
 };

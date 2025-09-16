@@ -1,11 +1,16 @@
-import { Button } from '../../components/ui/button';
 import { Calendar, Plus, X } from 'lucide-react';
+import { Button } from '../../components/ui/button';
 import MacroNutrientsCard from './macro-nutrients-card';
 import NutritionCard from './nutrition-card';
-import useDashboard from './hooks/use-dashboard';
+// import useDashboard from './hooks/use-dashboard';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import AddFoodModal from '../../components/AddFoodModal';
-import { useState } from 'react';
 import type { FoodItem } from '../../components/AddNewFoodModal';
+import { useAppSelector } from '../../store/hooks';
+import { getLoggedMeals, type FoodLog } from './api-handlers';
+import { MEAL_TYPES } from './constants';
+import { endOfDay, startOfDay } from 'date-fns';
 
 interface DashboardFoodItem extends FoodItem {
   id: string;
@@ -15,14 +20,15 @@ interface DashboardFoodItem extends FoodItem {
 }
 
 const Dashboard = () => {
-  const { mealTypes } = useDashboard();
+  // const { mealTypes } = useDashboard();
+  const { user } = useAppSelector((state) => state.auth);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [selectedMealType, setSelectedMealType] = useState('');
+  const [selectedMealType, setSelectedMealType] = useState<'breakfast' | 'lunch' | 'dinner' | 'snack' | ''>('');
   const [meals, setMeals] = useState<Record<string, DashboardFoodItem[]>>({
     breakfast: [],
     lunch: [],
     dinner: [],
-    snacks: [],
+    snack: [],
   });
 
   const today = new Date().toLocaleDateString('en-US', {
@@ -59,11 +65,11 @@ const Dashboard = () => {
     };
     setMeals(prev => ({
       ...prev,
-      [selectedMealType]: [...prev[selectedMealType], dashboardFood]
+      [selectedMealType]: [...prev?.[selectedMealType] || [], dashboardFood]
     }));
   };
 
-  const handleAddMultipleFoods = (foods: Array<{ food: FoodItem; quantity: number }>) => {
+  const handleAddMultipleFoods = async (foods: Array<{ food: FoodItem; quantity: number }>) => {
     const dashboardFoods: DashboardFoodItem[] = foods.map(({ food, quantity }) => ({
       ...food,
       id: food._id || Date.now().toString(),
@@ -71,23 +77,66 @@ const Dashboard = () => {
       userId: food.user,
       userName: undefined // You might want to fetch this from user data
     }));
+    
     setMeals(prev => ({
       ...prev,
-      [selectedMealType]: [...prev[selectedMealType], ...dashboardFoods]
+      [selectedMealType]: [...prev?.[selectedMealType] || [], ...dashboardFoods]
     }));
+    
+    // Also refresh from API to sync with backend
+    await fetchLoggedMeals();
   };
 
   const handleRemoveFood = (mealType: string, foodId: string) => {
-    setMeals(prev => ({
-      ...prev,
-      [mealType]: prev[mealType].filter(food => food.id !== foodId)
-    }));
+    // check and update this flow
+
+    // setMeals(prev => ({
+    //   ...prev,
+    //   [mealType]: prev[mealType].filter(food => food.id !== foodId)
+    // }));
   };
 
-  const openAddModal = (mealType: string) => {
+  const openAddModal = (mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack') => {
     setSelectedMealType(mealType);
     setIsAddModalOpen(true);
   };
+
+  const fetchLoggedMeals = async () => {
+    if (!user?._id) 
+    { 
+      toast.error('User not found');
+      return;
+    }
+    const startDateEpoch =  startOfDay(new Date()).getTime(); // 00:00:00
+    const endDateEpoch = endOfDay(new Date()).getTime(); // 23:59:59
+    const response = await getLoggedMeals(user?._id || '', `startDate=${startDateEpoch}&endDate=${endDateEpoch}`);
+    console.info(response);
+    if (response.success && response.data) {
+      const meals = response.data?.reduce((acc: Record<'breakfast' | 'lunch' | 'dinner' | 'snack', DashboardFoodItem[]>, log: FoodLog) => ({
+        ...acc,
+        [log.mealType]: [...acc?.[log.mealType] || [], {
+          ...log,
+          id: log._id,
+          quantity: log.quantity,
+          userId: log.user,
+          emoji: log.meal.emoji,
+          name: log.meal.name,
+          protein: log.meal.protein,
+          carbs: log.meal.carbs,
+          fat: log.meal.fat,
+          calories: log.meal.calories,
+          servingSize: log.meal.servingSize,
+        }],
+      }), {} as Record<'breakfast' | 'lunch' | 'dinner' | 'snack', DashboardFoodItem[]>);
+      setMeals(meals);
+    } else {
+      toast.error(response.message ?? 'Some error occurred while fetching data');
+    }
+  };
+
+  useEffect(() => {
+    fetchLoggedMeals();
+  }, []);
 
   return (
     <div className='flex flex-col h-full w-full bg-gray-50'>
@@ -135,16 +184,16 @@ const Dashboard = () => {
 
         {/* Meals Section */}
         <div className='space-y-4'>
-          {mealTypes.map((mealType) => (
+          {MEAL_TYPES.map((mealType) => (
             <div key={mealType}>
               <div className='flex items-center justify-between mb-3'>
                 <h3 className='text-lg font-semibold text-gray-600 capitalize'>
-                  {mealType}
+                  {mealType  === 'snack' ? 'Snacks' : mealType}
                 </h3>
                 <Button
                   size='sm'
                   className='w-8 h-8 p-0 rounded-full bg-blue-500 hover:bg-blue-600 transition-all duration-200 hover:scale-105'
-                  onClick={() => openAddModal(mealType)}
+                  onClick={() => openAddModal(mealType as 'breakfast' | 'lunch' | 'dinner' | 'snack')}
                 >
                   <Plus size={16} className='text-white' />
                 </Button>
@@ -168,7 +217,7 @@ const Dashboard = () => {
                               )}
                             </div>
                             <div className='text-xs text-gray-500'>
-                              {item.quantity} {item.servingSize}
+                              {item.quantity} x {item.servingSize}
                             </div>
                           </div>
                         </div>
@@ -210,7 +259,7 @@ const Dashboard = () => {
       <AddFoodModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        mealType={selectedMealType}
+        mealType={selectedMealType as 'breakfast' | 'lunch' | 'dinner' | 'snack'}
         onAddFood={handleAddFood}
         onAddMultipleFoods={handleAddMultipleFoods}
       />

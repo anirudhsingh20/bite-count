@@ -1,0 +1,1 @@
+export const MEAL_TYPES = ['breakfast', 'lunch', 'snack', 'dinner'];
