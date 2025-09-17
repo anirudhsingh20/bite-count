@@ -1,5 +1,5 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
-import { REHYDRATE } from 'redux-persist'
+import { REHYDRATE, type RehydrateAction } from 'redux-persist'
 
 export interface User {
   _id: string
@@ -79,7 +79,7 @@ const authSlice = createSlice({
     },
   },
   extraReducers: (builder) => {
-    builder.addCase(REHYDRATE, (state, action: any) => {
+    builder.addCase(REHYDRATE, (state, action: RehydrateAction) => {
       // Handle rehydration - ensure state is properly restored
       if (action.payload && typeof action.payload === 'object' && 'auth' in action.payload) {
         const persistedState = action.payload as { auth: AuthState }
@@ -90,8 +90,6 @@ const authSlice = createSlice({
           state.accessToken = persistedState.auth.accessToken
           state.loadingType = persistedState.auth.loadingType
           state.error = null
-          state.refreshToken = persistedState.auth.refreshToken
-          state.accessToken = persistedState.auth.accessToken
         }
       }
     })

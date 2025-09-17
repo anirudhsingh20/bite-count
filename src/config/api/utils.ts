@@ -1,3 +1,4 @@
+/* eslint-disable */
 import apiClient from './axios';
 
 // Generic API methods

@@ -16,8 +16,8 @@ const useDashboard = () => {
           response.message ?? 'Some error occurred while fetching data'
         );
       }
-    } catch (error: any) {
-      toast.error(error.message ?? 'Some error occurred while fetching data');
+    } catch (error: unknown) {
+      toast.error((error as Error).message ?? 'Some error occurred while fetching data');
     }
   };
 
