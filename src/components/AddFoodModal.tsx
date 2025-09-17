@@ -2,15 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { X, Search, Plus, Minus, Flame, Zap } from 'lucide-react';
 import { Button } from './ui/button';
 import AddNewFoodModal from './AddNewFoodModal';
-import { getFoods } from '../containers/dashboard/api-handlers';
+import { getFoods, logMeals, type CreateBulkFoodLogRequest } from '../containers/dashboard/api-handlers';
 import { toast } from 'sonner';
 import type { FoodItem } from './AddNewFoodModal';
 import { useAppSelector } from '../store/hooks';
+import { getStartDateEpoch, getCurrentEpoch } from '../lib/date';
 
 interface AddFoodModalProps {
   isOpen: boolean;
   onClose: () => void;
-  mealType: string;
+  mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
   onAddFood: (food: FoodItem, quantity: number) => void;
   onAddMultipleFoods?: (foods: Array<{ food: FoodItem; quantity: number }>) => void;
 }
@@ -87,7 +88,7 @@ const AddFoodModal: React.FC<AddFoodModalProps> = ({
         return [...prev, { food, quantity: newQuantity }];
       }
     });
-    toast.success('Food added to list');
+    // toast.success('Food added to list');
   };
 
   const handleDecrement = (food: FoodItem) => {
@@ -116,7 +117,7 @@ const AddFoodModal: React.FC<AddFoodModalProps> = ({
       
       setSelectedFoods(prev => prev.filter(item => item.food._id !== food._id));
       setExpandedFoodId(null);
-      toast.success('Food removed from list');
+      // toast.success('Food removed from list');
     }
   };
 
@@ -144,9 +145,27 @@ const AddFoodModal: React.FC<AddFoodModalProps> = ({
       await new Promise((resolve) => setTimeout(resolve, 500));
       
       if (onAddMultipleFoods) {
+        const requestBody: CreateBulkFoodLogRequest = {
+          user: user?._id || '',
+          mealType: mealType,
+          items: selectedFoods.map(item => ({
+            meal: item.food._id || '',
+            quantity: item.quantity,
+          })),
+          logDate: getStartDateEpoch(),
+          loggedAt: getCurrentEpoch(),        
+        };
+        const response = await logMeals(requestBody);
+        if (response.success) {
+          toast.success(`${selectedFoods.length} food items added successfully`);
+        } else {
+          toast.error('Failed to add food items');
+        }
+        console.info(response);
         onAddMultipleFoods(selectedFoods);
         toast.success(`${selectedFoods.length} food items added successfully`);
       } else {
+        // check and update this flow
         // Fallback to adding one by one
         for (const item of selectedFoods) {
           onAddFood(item.food, item.quantity);
@@ -190,7 +209,7 @@ const AddFoodModal: React.FC<AddFoodModalProps> = ({
                 {selectedFoods.length > 0 && (
                   <div className='flex items-center gap-2 mt-2'>
                     <span className='text-xs text-blue-600 font-medium'>
-                      {selectedFoods.length} items selected
+                      {selectedFoods.length} item{selectedFoods.length > 1 ? 's' : ''} selected
                     </span>
                   </div>
                 )}
@@ -337,7 +356,11 @@ const AddFoodModal: React.FC<AddFoodModalProps> = ({
               <Button
                 onClick={handleAddAllSelectedFoods}
                 disabled={selectedFoods.length === 0 || isAdding}
-                className='flex-1 bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-50'
+                className={`flex-1 text-white disabled:opacity-50 ${
+                  selectedFoods.length === 0 
+                    ? 'bg-gray-400 cursor-not-allowed' 
+                    : 'bg-blue-500 hover:bg-blue-600'
+                }`}
               >
                 {isAdding ? (
                   <div className='flex items-center gap-2'>
