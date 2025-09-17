@@ -1,17 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { X, Search, Plus, Minus, Flame, Zap } from 'lucide-react';
-import { Button } from './ui/button';
-import AddNewFoodModal from './AddNewFoodModal';
-import { getFoods, logMeals, type CreateBulkFoodLogRequest } from '../containers/dashboard/api-handlers';
+import { Calendar, Flame, Minus, Plus, Search, X, Zap } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import type { FoodItem } from './AddNewFoodModal';
+import { getFoods, logMeals, type CreateBulkFoodLogRequest } from '../containers/dashboard/api-handlers';
+import { getCurrentEpoch } from '../lib/date';
 import { useAppSelector } from '../store/hooks';
-import { getStartDateEpoch, getCurrentEpoch } from '../lib/date';
+import type { FoodItem } from './AddNewFoodModal';
+import AddNewFoodModal from './AddNewFoodModal';
+import { Button } from './ui/button';
 
 interface AddFoodModalProps {
   isOpen: boolean;
   onClose: () => void;
   mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+  logDateEpoch: number;
+  dateString: string;
   onAddFood: (food: FoodItem, quantity: number) => void;
   onAddMultipleFoods?: (foods: Array<{ food: FoodItem; quantity: number }>) => void;
 }
@@ -20,6 +22,8 @@ const AddFoodModal: React.FC<AddFoodModalProps> = ({
   isOpen,
   onClose,
   mealType,
+  logDateEpoch,
+  dateString,
   onAddFood,
   onAddMultipleFoods,
 }) => {
@@ -152,7 +156,7 @@ const AddFoodModal: React.FC<AddFoodModalProps> = ({
             meal: item.food._id || '',
             quantity: item.quantity,
           })),
-          logDate: getStartDateEpoch(),
+          logDate: logDateEpoch,
           loggedAt: getCurrentEpoch(),        
         };
         const response = await logMeals(requestBody);
@@ -200,11 +204,12 @@ const AddFoodModal: React.FC<AddFoodModalProps> = ({
           <div className='sticky top-0 bg-white border-b border-gray-100 p-4'>
             <div className='flex items-center justify-between'>
               <div>
-                <h2 className='text-xl font-bold text-gray-900'>
-                  Add to {mealType}
+                <h2 className='text-xl font-bold text-gray-900 capitalize'>
+                  {mealType}
                 </h2>
-                <p className='text-sm text-gray-500'>
-                  Search and add food items
+                <p className='text-sm text-gray-500 flex items-center'>
+                  <Calendar size="14" className='mr-2' />
+                  {dateString}
                 </p>
                 {selectedFoods.length > 0 && (
                   <div className='flex items-center gap-2 mt-2'>
