@@ -9,22 +9,26 @@ import { toast } from 'sonner';
 import AddFoodModal from '../../components/AddFoodModal';
 import type { FoodItem } from '../../components/AddNewFoodModal';
 import { useAppSelector } from '../../store/hooks';
-import { getLoggedMeals, type FoodLog } from './api-handlers';
+import { getLoggedMeals, getQuantityUnits } from './api-handlers';
 import { MEAL_TYPES } from './constants';
 import DashboardHeader from './header';
 import { getDateStringFromDateDifference } from './helpers';
 
-interface DashboardFoodItem extends FoodItem {
+interface DashboardFoodItem {
   id: string;
-  quantity: number;
+  servings: number;
   userId?: string;
   userName?: string;
+  mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+  meal: FoodItem;
 }
 
 const Dashboard = () => {
   // const { mealTypes } = useDashboard();
 
-  const [dateDifferenceFromToday, setDateDifferenceFromToday] = useState<0| 1 | 2>(0);
+  const [dateDifferenceFromToday, setDateDifferenceFromToday] = useState<
+    0 | 1 | 2
+  >(0);
 
   const logDateEpoch = useMemo(() => {
     return startOfDay(subDays(new Date(), dateDifferenceFromToday)).getTime();
@@ -41,24 +45,25 @@ const Dashboard = () => {
     dinner: [],
     snack: [],
   });
-
+  const [quantityUnits, setQuantityUnits] = useState<string[]>([]);
+  const [defaultQuantityId, setDefaultQuantityId] = useState<any | null>(null);
   // Calculate nutrition data from meals
   const calculateNutritionData = () => {
     const allFoods = Object.values(meals).flat();
     const totalCalories = allFoods.reduce(
-      (sum, food) => sum + food.calories * food.quantity,
+      (sum, food) => sum + (food.meal?.calories ?? 0) * food.meal?.quantity || 0,
       0
     );
     const totalProtein = allFoods.reduce(
-      (sum, food) => sum + food.protein * food.quantity,
+      (sum, food) => sum + (food.meal?.protein ?? 0) * food.meal?.quantity || 0,
       0
     );
     const totalCarbs = allFoods.reduce(
-      (sum, food) => sum + (food.carbs || 0) * food.quantity,
+      (sum, food) => sum + (food.meal?.carbs || 0) * food.meal?.quantity || 0,
       0
     );
     const totalFat = allFoods.reduce(
-      (sum, food) => sum + (food.fat || 0) * food.quantity,
+      (sum, food) => sum + (food.meal?.fat || 0) * food.meal?.quantity || 0,
       0
     );
 
@@ -72,40 +77,42 @@ const Dashboard = () => {
 
   const nutritionData = calculateNutritionData();
 
-  const handleAddFood = (food: FoodItem, quantity: number) => {
-    const dashboardFood: DashboardFoodItem = {
-      ...food,
-      id: food._id || Date.now().toString(),
-      quantity,
-      userId: food.user,
-      userName: undefined, // You might want to fetch this from user data
-    };
-    setMeals((prev) => ({
-      ...prev,
-      [selectedMealType]: [...(prev?.[selectedMealType] || []), dashboardFood],
-    }));
+
+  // add new food
+  const handleAddFood = (_food: FoodItem, _servings: number) => {
+    // const dashboardFood: DashboardFoodItem = {
+    //   meal: food,
+    //   id: food._id || Date.now().toString(),
+    //   servings,
+    //   userId: food.user,
+    //   userName: undefined, // You might want to fetch this from user data
+    // };
+    // setMeals((prev) => ({
+    //   ...prev,
+    //   [selectedMealType]: [...(prev?.[selectedMealType] || []), dashboardFood],
+    // }));
   };
 
   const handleAddMultipleFoods = async (
-    foods: Array<{ food: FoodItem; quantity: number }>
+    _foods: Array<{ food: FoodItem; servings: number }>
   ) => {
-    const dashboardFoods: DashboardFoodItem[] = foods.map(
-      ({ food, quantity }) => ({
-        ...food,
-        id: food._id || Date.now().toString(),
-        quantity,
-        userId: food.user,
-        userName: undefined, // You might want to fetch this from user data
-      })
-    );
+    // const dashboardFoods: DashboardFoodItem[] = foods.map(
+    //   ({ food, servings }) => ({
+    //     meal: food,
+    //     id: food._id || Date.now().toString(),
+    //     servings,
+    //     mealType: selectedMealType,
+    //     userId: food.user,
+    //   })
+    // );
 
-    setMeals((prev) => ({
-      ...prev,
-      [selectedMealType]: [
-        ...(prev?.[selectedMealType] || []),
-        ...dashboardFoods,
-      ],
-    }));
+    // setMeals((prev) => ({
+    //   ...prev,
+    //   [selectedMealType]: [
+    //     ...(prev?.[selectedMealType] || []),
+    //     ...dashboardFoods,
+    //   ],
+    // }));
 
     // Also refresh from API to sync with backend
     await fetchLoggedMeals();
@@ -127,51 +134,56 @@ const Dashboard = () => {
     setIsAddModalOpen(true);
   };
 
+  const fetchQuantityUnits = useCallback(async () => {
+    const response = await getQuantityUnits();
+    if (response.success && response.data) {
+      setQuantityUnits(response.data);
+      const gramsUnit = response.data.find(
+        (unit: any) => unit?.name?.toLowerCase() === 'gram'
+      );
+      setDefaultQuantityId(gramsUnit?._id || null);
+    } else {
+      toast.error(
+        response.message ?? 'Some error occurred while fetching data'
+      );
+    }
+  }, []);
+
   const fetchLoggedMeals = useCallback(async () => {
     if (!user?._id) {
       toast.error('User not found');
       return;
     }
-    const startDateEpoch = startOfDay(subDays(new Date(), dateDifferenceFromToday)).getTime(); // 00:00:00
-    const endDateEpoch = endOfDay(subDays(new Date(), dateDifferenceFromToday)).getTime(); // 23:59:59
+    const startDateEpoch = startOfDay(
+      subDays(new Date(), dateDifferenceFromToday)
+    ).getTime(); // 00:00:00
+    const endDateEpoch = endOfDay(
+      subDays(new Date(), dateDifferenceFromToday)
+    ).getTime(); // 23:59:59
     const response = await getLoggedMeals(
       user?._id || '',
       `startDate=${startDateEpoch}&endDate=${endDateEpoch}`
     );
     console.info(response);
     if (response.success && response.data) {
-      const meals = response.data?.reduce(
+      const tempMeals = response.data?.reduce(
         (
           acc: Record<
             'breakfast' | 'lunch' | 'dinner' | 'snack',
             DashboardFoodItem[]
           >,
-          log: FoodLog
-        ) => ({
-          ...acc,
-          [log.mealType]: [
-            ...(acc?.[log.mealType] || []),
-            {
-              ...log,
-              id: log._id,
-              quantity: log.quantity,
-              userId: log.user,
-              emoji: log.meal?.emoji,
-              name: log.meal?.name,
-              protein: log.meal?.protein,
-              carbs: log.meal?.carbs,
-              fat: log.meal?.fat,
-              calories: log.meal?.calories,
-              servingSize: log.meal?.servingSize,
-            },
-          ],
-        }),
-        {} as Record<
-          'breakfast' | 'lunch' | 'dinner' | 'snack',
-          DashboardFoodItem[]
-        >
+          log: DashboardFoodItem
+        ) => {
+
+          return {
+            ...acc,
+            [log.mealType]: [...(acc?.[log.mealType] || []), log],
+          };
+        },
+        {}
       );
-      setMeals(meals);
+      console.info(tempMeals);
+      setMeals(tempMeals);
     } else {
       toast.error(
         response.message ?? 'Some error occurred while fetching data'
@@ -181,6 +193,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchLoggedMeals();
+    fetchQuantityUnits();
   }, [fetchLoggedMeals]);
 
   return (
@@ -253,11 +266,11 @@ const Dashboard = () => {
                     >
                       <div className='flex items-center justify-between'>
                         <div className='flex items-center gap-3'>
-                          <div className='text-2xl'>{item.emoji}</div>
+                          <div className='text-2xl'>{item?.meal?.emoji ?? '🍽️'}</div>
                           <div>
                             <div className='flex items-center gap-2'>
                               <span className='font-medium text-gray-900'>
-                                {item.name}
+                                {item.meal?.name}
                               </span>
                               {item.userName && (
                                 <span className='text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full'>
@@ -266,18 +279,19 @@ const Dashboard = () => {
                               )}
                             </div>
                             <div className='text-xs text-gray-500'>
-                              {item.quantity} x {item.servingSize}
+                              {item.servings} X {item.meal?.quantity}
+                              {item.meal.quantityUnit?.shortName}
                             </div>
                           </div>
                         </div>
                         <div className='flex items-center gap-3'>
                           <div className='flex items-center gap-2 text-sm text-gray-600'>
                             <span>
-                              {Math.round(item.calories * item.quantity)} kcal
+                              {Math.round((item.meal?.calories ?? 0) * item.meal?.quantity)} kcal
                             </span>
                             <div className='w-px h-4 bg-gray-300'></div>
                             <span>
-                              {Math.round(item.protein * item.quantity * 10) /
+                              {Math.round(item.meal.protein * item.meal.quantity * 10) /
                                 10}
                               g protein
                             </span>
@@ -323,6 +337,8 @@ const Dashboard = () => {
         dateString={getDateStringFromDateDifference(dateDifferenceFromToday)}
         onAddFood={handleAddFood}
         onAddMultipleFoods={handleAddMultipleFoods}
+        quantityUnits={quantityUnits}
+        defaultQuantityId={defaultQuantityId}
       />
     </div>
   );

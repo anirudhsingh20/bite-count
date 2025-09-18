@@ -23,7 +23,7 @@ export const getLoggedMeals = async (userId: string, queryParamsString: string) 
 
 export interface BulkFoodLogItem {
     meal: string; // Reference to Meal ID
-    quantity: number; // How many servings
+    servings: number; // How many servings
     notes?: string;
   }
   
@@ -58,7 +58,7 @@ export interface BulkFoodLogItem {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     meal: any; // Reference to Meal ID // check and update ... make sure to use this in all the places where meal is used
     mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack'; // check and update ... make sure to use this in all the places where meal type is used
-    quantity: number; // How many servings
+    servings: number; // How many servings
     loggedAt: Date;
     notes?: string;
     createdAt: Date;
@@ -67,5 +67,10 @@ export interface BulkFoodLogItem {
 
 export const logMeals = async (requestBody: CreateBulkFoodLogRequest): Promise<BulkFoodLogResponse> => {
     const {data} = await apiClient.post(ENDPOINTS.loggedMeals.logBulk, requestBody);
+    return data;
+};
+
+export const getQuantityUnits = async () => {
+    const {data} = await apiClient.get(ENDPOINTS.quantityUnits.get);
     return data;
 };

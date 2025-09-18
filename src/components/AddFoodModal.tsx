@@ -14,8 +14,10 @@ interface AddFoodModalProps {
   mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
   logDateEpoch: number;
   dateString: string;
-  onAddFood: (food: FoodItem, quantity: number) => void;
-  onAddMultipleFoods?: (foods: Array<{ food: FoodItem; quantity: number }>) => void;
+  onAddFood: (food: FoodItem, servings: number) => void;
+  onAddMultipleFoods?: (foods: Array<{ food: FoodItem; servings: number }>) => void;
+  quantityUnits: string[];
+  defaultQuantityId: string | null;
 }
 
 const AddFoodModal: React.FC<AddFoodModalProps> = ({
@@ -26,6 +28,8 @@ const AddFoodModal: React.FC<AddFoodModalProps> = ({
   dateString,
   onAddFood,
   onAddMultipleFoods,
+  quantityUnits,
+  defaultQuantityId,
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useAppSelector((state) => state.auth);
@@ -36,7 +40,7 @@ const AddFoodModal: React.FC<AddFoodModalProps> = ({
   const [expandedFoodId, setExpandedFoodId] = useState<string | null>(null);
   const [showAddNewFoodModal, setShowAddNewFoodModal] = useState(false);
   const [isFoodFetching, setIsFoodFetching] = useState(false);
-  const [selectedFoods, setSelectedFoods] = useState<Array<{ food: FoodItem; quantity: number }>>([]);
+  const [selectedFoods, setSelectedFoods] = useState<Array<{ food: FoodItem; servings: number }>>([]);
   const [itemQuantities, setItemQuantities] = useState<Record<string, number>>({});
 
   const fetchFoodData = async () => {
@@ -85,11 +89,11 @@ const AddFoodModal: React.FC<AddFoodModalProps> = ({
       if (existingIndex !== -1) {
         // Update existing item with new quantity
         const updated = [...prev];
-        updated[existingIndex] = { food, quantity: newQuantity };
+        updated[existingIndex] = { food, servings: newQuantity };
         return updated;
       } else {
         // Add new item
-        return [...prev, { food, quantity: newQuantity }];
+        return [...prev, { food, servings: newQuantity }];
       }
     });
     // toast.success('Food added to list');
@@ -106,7 +110,7 @@ const AddFoodModal: React.FC<AddFoodModalProps> = ({
         const existingIndex = prev.findIndex(item => item.food._id === food._id);
         if (existingIndex !== -1) {
           const updated = [...prev];
-          updated[existingIndex] = { food, quantity: newQuantity };
+          updated[existingIndex] = { food, servings: newQuantity };
           return updated;
         }
         return prev;
@@ -135,7 +139,7 @@ const AddFoodModal: React.FC<AddFoodModalProps> = ({
       // If not selected, add to list and expand
       setExpandedFoodId(food._id || '');
       setItemQuantities(prev => ({ ...prev, [food._id || '']: 1 }));
-      setSelectedFoods(prev => [...prev, { food, quantity: 1 }]);
+      setSelectedFoods(prev => [...prev, { food, servings: 1 }]);
       // toast.success('Food added to list');
     }
   };
@@ -154,7 +158,7 @@ const AddFoodModal: React.FC<AddFoodModalProps> = ({
           mealType: mealType,
           items: selectedFoods.map(item => ({
             meal: item.food._id || '',
-            quantity: item.quantity,
+            servings: item.servings,
           })),
           logDate: logDateEpoch,
           loggedAt: getCurrentEpoch(),        
@@ -172,7 +176,7 @@ const AddFoodModal: React.FC<AddFoodModalProps> = ({
         // check and update this flow
         // Fallback to adding one by one
         for (const item of selectedFoods) {
-          onAddFood(item.food, item.quantity);
+          onAddFood(item.food, item.servings);
         }
         toast.success(`${selectedFoods.length} food items added successfully`);
       }
@@ -275,7 +279,7 @@ const AddFoodModal: React.FC<AddFoodModalProps> = ({
                 filteredFoods.map((food) => {
                   const isExpanded = expandedFoodId === food._id;
                   const isSelected = selectedFoods.some(item => item.food._id === food._id);
-                  const foodQuantity = itemQuantities[food._id || ''] || 1;
+                  const foodServings = itemQuantities[food._id || ''] || 1;
 
                   return (
                     <div
@@ -295,19 +299,19 @@ const AddFoodModal: React.FC<AddFoodModalProps> = ({
                           )}
                         </div>
                         <p className='text-sm text-gray-500'>
-                          {food.servingSize}
+                          {food.quantity} {food.quantityUnit?.shortName}
                         </p>
                         <div className='flex items-center gap-4 mt-1'>
                           <div className='flex items-center gap-1 text-xs text-gray-500'>
                             <Flame className='text-red-400' size={12} />
                             <span>
-                              {Math.round(food.calories * foodQuantity)} cal
+                              {Math.round(food.calories * foodServings)} cal
                             </span>
                           </div>
                           <div className='flex items-center gap-1 text-xs text-gray-500'>
                             <Zap className='text-blue-400' size={12} />
                             <span>
-                              {Math.round(food.protein * foodQuantity * 10) /
+                              {Math.round(food.protein * foodServings * 10) /
                                 10}
                               g protein
                             </span>
@@ -328,7 +332,7 @@ const AddFoodModal: React.FC<AddFoodModalProps> = ({
                           </Button>
 
                           <span className='text-lg font-semibold text-gray-900 min-w-[24px] text-center'>
-                            {foodQuantity}
+                            {foodServings}
                           </span>
 
                           <Button
@@ -386,8 +390,18 @@ const AddFoodModal: React.FC<AddFoodModalProps> = ({
         isOpen={showAddNewFoodModal}
         onClose={() => setShowAddNewFoodModal(false)}
         mealType={mealType}
-        onAddFood={onAddFood}
+        onAddFood={async (food: FoodItem, servings: number) => {
+          try {
+            await fetchFoodData();
+            await onAddFood(food, servings);
+          
+          } catch (error) {
+            console.error(error);
+          }
+        }}
         onAddMultipleFoods={onAddMultipleFoods}
+        quantityUnits={quantityUnits}
+        defaultQuantityId={defaultQuantityId}
       />
     </>
   );

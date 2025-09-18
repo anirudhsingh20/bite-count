@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { X, Flame, Zap } from 'lucide-react';
 import { Button } from './ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import { useAppSelector } from '../store/hooks';
@@ -14,27 +15,32 @@ export interface FoodItem {
   calories: number;
   fat?: number;
   carbs?: number;
-  servingSize: string;
+  quantity: number;
+  quantityUnit: any;
   tags?: string[];
   emoji?: string;
   user?: string;
 }
 
 interface FoodItemForm
-  extends Omit<FoodItem, 'protein' | 'carbs' | 'fat' | 'calories'> {
+  extends Omit<FoodItem, 'protein' | 'carbs' | 'fat' | 'calories' | 'quantity' | 'quantityUnit'> {
   calories: string;
   protein: string;
   carbs: string;
   fat: string;
+  quantity: string;
+  quantityUnit: string | null;
 }
 
 interface AddNewFoodModalProps {
   isOpen: boolean;
   onClose: () => void;
   mealType: string;
-  onAddFood: (food: FoodItem, quantity: number) => void;
-  onAddMultipleFoods?: (foods: Array<{ food: FoodItem; quantity: number }>) => void;
-}
+  onAddFood: (food: FoodItem, servings: number) => void;
+  onAddMultipleFoods?: (foods: Array<{ food: FoodItem; servings: number }>) => void;
+  quantityUnits: string[];
+  defaultQuantityId: string | null;
+  }
 
 const AddNewFoodModal: React.FC<AddNewFoodModalProps> = ({
   isOpen,
@@ -42,11 +48,14 @@ const AddNewFoodModal: React.FC<AddNewFoodModalProps> = ({
   mealType,
   onAddFood,
   onAddMultipleFoods,
+  quantityUnits,
+  defaultQuantityId,
 }) => {
-  const [quantity, setQuantity] = useState(1);
+  const [servings, setServings] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
-  const [foodItems, setFoodItems] = useState<Array<{ food: FoodItem; quantity: number }>>([]);
+  const [foodItems, setFoodItems] = useState<Array<{ food: FoodItem; servings: number }>>([]);
   const [isMultiAddMode, setIsMultiAddMode] = useState(false);
+
 
   // Validation schema
   const validationSchema = Yup.object({
@@ -68,28 +77,26 @@ const AddNewFoodModal: React.FC<AddNewFoodModalProps> = ({
     fat: Yup.number()
       .min(0, 'Fat must be 0 or greater')
       .max(1000, 'Fat must be less than 1,000g'),
-    servingSize: Yup.string()
-      .required('Serving size is required')
-      .min(1, 'Serving size is required')
-      .max(20, 'Serving size must be less than 20 characters'),
     emoji: Yup.string().required('Food icon is required'),
     user: Yup.string().required('User assignment is required'),
   });
 
   const { user } = useAppSelector((state) => state.auth);
-  console.info('user', user);
 
   // Initial form values
-  const initialValues: FoodItemForm = {
-    name: '',
-    calories: '',
-    protein: '',
-    carbs: '',
-    fat: '',
-    servingSize: '',
-    emoji: '🍽️',
-    user: user?._id || '',
-  };
+  const initialValues: FoodItemForm = useMemo(() => {
+    return {
+      name: '',
+      calories: '',
+      protein: '',
+      carbs: '',
+      fat: '',
+      emoji: '🍽️',
+      user: user?._id || '',
+      quantity: '1', // check and update
+      quantityUnit: defaultQuantityId || null,
+    };
+  }, [defaultQuantityId]);
 
   const handleAddNewFood = async (values: FoodItemForm) => {
     try {
@@ -99,28 +106,28 @@ const AddNewFoodModal: React.FC<AddNewFoodModalProps> = ({
         protein: parseFloat(values.protein),
         carbs: parseFloat(values.carbs) || 0,
         fat: parseFloat(values.fat) || 0,
-        servingSize: values.servingSize,
+        quantity: parseFloat(values.quantity),
+        quantityUnit: values.quantityUnit!,
         emoji: values.emoji,
         user: user?._id,
       };
 
       setIsAdding(true);
-      // Simulate API call
       const response = await addFood(foodItem);
       console.info(response);
       if (response.success) {
         if (isMultiAddMode) {
           // Add to the list of food items
-          setFoodItems(prev => [...prev, { food: foodItem, quantity }]);
+          setFoodItems(prev => [...prev, { food: foodItem, servings: servings }]);
           toast.success('Food item added to list');
           // Reset form for next item
           formik.resetForm();
-          setQuantity(1);
+          setServings(1);
         } else {
           // Single add mode
           toast.success('Food item added successfully');
-          onAddFood(foodItem, quantity);
-          setQuantity(1);
+          onAddFood(foodItem, servings);
+          setServings(1);
           onClose();
         }
       } else {
@@ -145,7 +152,7 @@ const AddNewFoodModal: React.FC<AddNewFoodModalProps> = ({
       } else {
         // Fallback to adding one by one
         for (const item of foodItems) {
-          onAddFood(item.food, item.quantity);
+          onAddFood(item.food, item.servings);
         }
         toast.success(`${foodItems.length} food items added successfully`);
       }
@@ -170,7 +177,17 @@ const AddNewFoodModal: React.FC<AddNewFoodModalProps> = ({
     onSubmit: handleAddNewFood,
   });
 
-  console.info(formik.errors);
+  const selectedQuantityUnit: any = useMemo(() => {
+    return quantityUnits.find((unit: any) => unit?._id === formik.values.quantityUnit);
+  }, [formik.values.quantityUnit, quantityUnits]);
+
+
+  useEffect(() => {
+    console.info(selectedQuantityUnit, selectedQuantityUnit?.defaultValue);
+    if (selectedQuantityUnit) {
+      formik.setFieldValue('quantity', selectedQuantityUnit?.defaultValue || 1);
+    }
+  }, [selectedQuantityUnit]);
 
   if (!isOpen) return null;
 
@@ -261,24 +278,49 @@ const AddNewFoodModal: React.FC<AddNewFoodModalProps> = ({
                 <label className='block text-sm font-medium text-gray-700 mb-2'>
                   Serving Size *
                 </label>
-                <input
-                  type='text'
-                  name='servingSize'
-                  placeholder='e.g., 100g, 1 cup, 1 piece'
-                  value={formik.values.servingSize}
-                  onChange={formik.handleChange}
-                  onBlur={formik.handleBlur}
-                  className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    formik.errors.servingSize && formik.touched.servingSize
-                      ? 'border-red-300 focus:ring-red-500'
-                      : 'border-gray-200'
-                  }`}
-                />
-                {formik.errors.servingSize && formik.touched.servingSize && (
-                  <div className='text-red-500 text-xs mt-1'>
-                    {formik.errors.servingSize}
+                <div className='flex gap-2'>
+                  {/* Quantity Input with +/- buttons */}
+                  <div className='flex items-center border border-gray-200 rounded-xl overflow-hidden'>
+                    <button
+                      type='button'
+                      onClick={() => {
+                        const newQuantity = parseInt(formik.values.quantity) - (selectedQuantityUnit?.incrementValue || 1);
+                        formik.setFieldValue('quantity', newQuantity <= 0 ? 0.1 : newQuantity);
+                      }}
+                        className='px-3 py-3 bg-gray-50 hover:bg-gray-100 text-gray-600 font-medium transition-colors'
+                    >
+                      —
+                    </button>
+                    <input
+                      type='number'
+                      name='quantity'
+                      value={formik.values.quantity}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                      className='w-16 px-2 py-3 text-center border-0 focus:outline-none focus:ring-0'
+                      min='1'
+                    />
+                    <button
+                      type='button'
+                      onClick={() => formik.setFieldValue('quantity', parseInt(formik.values.quantity) + (selectedQuantityUnit?.incrementValue || 1))}
+                      className='px-3 py-3 bg-gray-50 hover:bg-gray-100 text-gray-600 font-medium transition-colors'
+                    >
+                      +
+                    </button>
                   </div>
-                )}
+                  
+                  {/* Unit Dropdown */}
+                  <Select value={formik.values.quantityUnit || ''} onValueChange={(value) => formik.setFieldValue('quantityUnit', value)}>
+                    <SelectTrigger className='flex-1 py-3 px-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent'>
+                      <SelectValue placeholder="Select unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {quantityUnits.map((unit: any) => (
+                        <SelectItem key={unit?._id} value={unit?._id}>{unit?.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               {/* Nutrition Information */}
@@ -434,7 +476,7 @@ const AddNewFoodModal: React.FC<AddNewFoodModalProps> = ({
                           <p className='text-xs text-gray-500'>Calories</p>
                           <p className='font-semibold text-gray-900'>
                             {Math.round(
-                              parseFloat(formik.values.calories) * quantity
+                              parseFloat(formik.values.calories) * servings
                             )}
                           </p>
                         </div>
@@ -445,7 +487,7 @@ const AddNewFoodModal: React.FC<AddNewFoodModalProps> = ({
                           <p className='text-xs text-gray-500'>Protein</p>
                           <p className='font-semibold text-gray-900'>
                             {Math.round(
-                              parseFloat(formik.values.protein) * quantity * 10
+                              parseFloat(formik.values.protein) * servings * 10
                             ) / 10}
                             g
                           </p>
@@ -474,7 +516,7 @@ const AddNewFoodModal: React.FC<AddNewFoodModalProps> = ({
                               {item.food.name}
                             </p>
                             <p className='text-xs text-gray-500'>
-                              {item.quantity}x {item.food.servingSize} • {item.food.calories} cal
+                              {item.servings} X {item.food?.quantity}{item.food.quantityUnit?.shortName} • {item.food.calories} cal
                             </p>
                           </div>
                         </div>
